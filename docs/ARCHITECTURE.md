@@ -7,7 +7,7 @@ Tài liệu này giải thích cách React, Tauri và Rust ghép lại với nha
 ```mermaid
 flowchart TD
     A["React WebView"] -->|"typed Tauri commands"| B["Rust composition root"]
-    C["Win32 message-only window"] -->|"session events"| B
+    C["Win32 hidden top-level window"] -->|"session events"| B
     B --> D["Repository"]
     D --> E["SQLite event log"]
     D --> F["Daily projection"]
@@ -63,7 +63,7 @@ Nếu heuristic thay đổi trong tương lai, có thể thêm migration để r
 
 ### Windows adapter (`windows_session.rs`)
 
-Tauri không expose trực tiếp các `WM_WTSSESSION_CHANGE` message cần cho app. Adapter tạo một Win32 message-only window trên dedicated thread và đăng ký `WTSRegisterSessionNotification`.
+Tauri không expose trực tiếp các `WM_WTSSESSION_CHANGE` message cần cho app. Adapter tạo một Win32 hidden top-level window trên dedicated thread và đăng ký `WTSRegisterSessionNotification`. Window có kích thước 0, không dùng `WS_VISIBLE` và vẫn là top-level để nhận `WM_POWERBROADCAST`/end-session broadcasts; message-only window không nhận các broadcast này.
 
 Không subclass WebView window vì lifecycle của tracking không nên phụ thuộc vào window UI. Tất cả `unsafe` blocks đều nằm trong adapter này và có safety comment.
 
@@ -87,7 +87,7 @@ Command trả `Result<T, String>` để Tauri serialize error rõ ràng. Interna
 ## Threading model
 
 - Tauri main thread quản lý native UI/tray.
-- Win32 monitor thread sở hữu message-only window và message loop.
+- Win32 monitor thread sở hữu hidden top-level window và message loop.
 - Callback thread chuyển event vào repository qua `Mutex`.
 - Projection timer thread thức mỗi 60 giây.
 - SQLite `busy_timeout` là 5 giây và WAL giảm contention khi đọc/ghi.
@@ -111,4 +111,3 @@ Repository operations ngắn và synchronous. Với workload một event mỗi v
 - CI dùng `npm ci` và Cargo `--locked`.
 - Dependabot đề xuất update hằng tuần; không auto-merge.
 - Node dùng latest LTS thay vì Current release để phù hợp production guidance.
-

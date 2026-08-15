@@ -95,7 +95,7 @@ Không sửa raw `events` rows để “fix” history. Nên thêm correction ev
 - Xác nhận app vẫn chạy trong system tray.
 - Kiểm tra `WTSRegisterSessionNotification` thành công.
 - Đặt breakpoint/log ở `window_proc` cho `WM_WTSSESSION_CHANGE`.
-- Xác nhận message-only window chưa bị destroy.
+- Xác nhận hidden top-level monitor window chưa bị destroy.
 
 ### Autostart không chạy
 
@@ -120,4 +120,3 @@ SELECT * FROM workdays ORDER BY local_date DESC;
 - Không thêm Tauri permission nếu feature chưa cần.
 - Không log raw personal history ra console trong release.
 - Chạy `cargo fmt`, `clippy`, frontend build và cả hai test suites trước merge.
-
