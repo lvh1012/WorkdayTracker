@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDate, formatDuration, formatTime } from "./format";
 import type { Dashboard, WorkdayStatus, WorkdaySummary } from "./types";
 
@@ -44,15 +44,24 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingSetting, setSavingSetting] = useState(false);
+  const latestDashboardRequestId = useRef(0);
 
   const loadDashboard = useCallback(async () => {
+    const requestId = ++latestDashboardRequestId.current;
     try {
-      setDashboard(await invoke<Dashboard>("get_dashboard"));
-      setError(null);
+      const nextDashboard = await invoke<Dashboard>("get_dashboard");
+      if (requestId === latestDashboardRequestId.current) {
+        setDashboard(nextDashboard);
+        setError(null);
+      }
     } catch (reason) {
-      setError(String(reason));
+      if (requestId === latestDashboardRequestId.current) {
+        setError(String(reason));
+      }
     } finally {
-      setLoading(false);
+      if (requestId === latestDashboardRequestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -187,4 +196,3 @@ export default function App() {
     </main>
   );
 }
-

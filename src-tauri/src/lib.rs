@@ -88,12 +88,19 @@ fn start_projection_timer(app: AppHandle) {
         loop {
             thread::sleep(Duration::from_secs(60));
             let state = app.state::<AppState>();
-            let changed = state
-                .repository
-                .lock()
-                .ok()
-                .and_then(|mut repository| repository.advance_projection(&Occurrence::now()).ok())
-                .unwrap_or(false);
+            let changed = match state.repository.lock() {
+                Ok(mut repository) => match repository.advance_projection(&Occurrence::now()) {
+                    Ok(changed) => changed,
+                    Err(error) => {
+                        eprintln!("Cannot advance workday projection: {error}");
+                        false
+                    }
+                },
+                Err(error) => {
+                    eprintln!("Cannot lock workday repository: {error}");
+                    false
+                }
+            };
             if changed {
                 let _ = app.emit("workday-updated", ());
             }

@@ -19,9 +19,9 @@ mod implementation {
             },
             UI::WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-                HWND_MESSAGE, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND, PostMessageW,
-                PostQuitMessage, RegisterClassW, TranslateMessage, WINDOW_EX_STYLE, WINDOW_STYLE,
-                WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION,
+                MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND, PostMessageW, PostQuitMessage,
+                RegisterClassW, TranslateMessage, WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE,
+                WM_DESTROY, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION,
                 WM_WTSSESSION_CHANGE, WNDCLASSW, WTS_SESSION_LOCK, WTS_SESSION_LOGOFF,
                 WTS_SESSION_LOGON, WTS_SESSION_UNLOCK,
             },
@@ -33,10 +33,11 @@ mod implementation {
 
     static EVENT_CALLBACK: OnceLock<Box<dyn Fn(EventKind) + Send + Sync>> = OnceLock::new();
 
-    /// A dedicated Win32 message-only window.
+    /// A dedicated hidden Win32 top-level window.
     ///
     /// We intentionally do not subclass Tauri's WebView window. Keeping native session messages
     /// on their own thread avoids coupling tracking reliability to WebView window recreation.
+    /// It must remain top-level because message-only windows do not receive system broadcasts.
     pub struct WindowsSessionMonitor {
         window_handle: isize,
         thread: Option<JoinHandle<()>>,
@@ -118,7 +119,9 @@ mod implementation {
                 0,
                 0,
                 0,
-                Some(HWND_MESSAGE),
+                // A parentless, zero-sized window remains invisible while still receiving
+                // WM_POWERBROADCAST and end-session broadcasts.
+                None,
                 None,
                 Some(instance),
                 None,

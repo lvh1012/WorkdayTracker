@@ -88,7 +88,8 @@ impl Repository {
         let mut changed = Self::finalize_older_days(&transaction, &now.local_date, now.utc_ms)?;
         changed += transaction.execute(
             "UPDATE workdays
-             SET departure_utc_ms = pending_departure_utc_ms
+             SET departure_utc_ms = pending_departure_utc_ms,
+                 pending_departure_utc_ms = NULL
              WHERE local_date = ?1
                AND pending_departure_utc_ms IS NOT NULL
                AND departure_utc_ms IS NULL
@@ -159,11 +160,21 @@ impl Repository {
         transaction: &Transaction<'_>,
         occurrence: &Occurrence,
     ) -> Result<(), rusqlite::Error> {
+        // Prefer an open projection for the event's local date. If the user works across
+        // midnight, attach the candidate to the latest still-open workday instead of losing it.
         transaction.execute(
             "UPDATE workdays
              SET pending_departure_utc_ms = ?2,
                  departure_utc_ms = NULL
-             WHERE local_date = ?1",
+             WHERE local_date = (
+               SELECT local_date
+               FROM workdays
+               WHERE departure_utc_ms IS NULL
+                 AND arrival_utc_ms <= ?2
+               ORDER BY CASE WHEN local_date = ?1 THEN 0 ELSE 1 END,
+                        arrival_utc_ms DESC
+               LIMIT 1
+             )",
             params![occurrence.local_date, occurrence.utc_ms],
         )?;
         Ok(())
@@ -303,5 +314,30 @@ mod tests {
         let previous_day = &repository.list_workdays(2_000_000).unwrap()[0];
         assert!(previous_day.departure_ms.is_none());
         assert_eq!(previous_day.pending_departure_ms, Some(10_000));
+    }
+
+    #[test]
+    fn after_midnight_lock_closes_the_latest_open_workday() {
+        let mut repository = repository();
+        repository
+            .record_event(EventKind::AppStarted, &at("2026-08-15", 1_000))
+            .unwrap();
+        repository
+            .record_event(EventKind::SessionLock, &at("2026-08-16", 2_000))
+            .unwrap();
+
+        let pending = &repository.list_workdays(2_001).unwrap()[0];
+        assert_eq!(pending.date, "2026-08-15");
+        assert_eq!(pending.pending_departure_ms, Some(2_000));
+
+        repository
+            .advance_projection(&at("2026-08-16", 2_000 + DEPARTURE_GRACE_MS))
+            .unwrap();
+
+        let complete = &repository
+            .list_workdays(2_000 + DEPARTURE_GRACE_MS)
+            .unwrap()[0];
+        assert_eq!(complete.departure_ms, Some(2_000));
+        assert!(complete.pending_departure_ms.is_none());
     }
 }

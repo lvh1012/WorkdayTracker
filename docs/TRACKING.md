@@ -38,7 +38,8 @@ stateDiagram-v2
 3. Departure không sớm hơn arrival.
 4. Present event cùng ngày luôn clear pending/final departure.
 5. Candidate cũ của ngày trước chỉ được finalize khi đã đủ grace period; đổi ngày không bỏ qua rule 30 phút.
-6. Raw events không update/delete trong MVP.
+6. Nếu away event đầu tiên đến sau nửa đêm nhưng chưa có workday mới, candidate thuộc về workday đang mở gần nhất của ngày trước.
+7. Raw events không update/delete trong MVP.
 
 ## Shutdown và grace period
 
