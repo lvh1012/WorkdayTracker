@@ -165,10 +165,11 @@ pub fn run() {
 
             // Enable once during onboarding. Later launches must respect a user-disabled setting.
             let autostart = app.autolaunch();
-            if is_first_run && !autostart.is_enabled().unwrap_or(false) {
-                if let Err(error) = autostart.enable() {
-                    eprintln!("Autostart was blocked by Windows policy: {error}");
-                }
+            if is_first_run
+                && !autostart.is_enabled().unwrap_or(false)
+                && let Err(error) = autostart.enable()
+            {
+                eprintln!("Autostart was blocked by Windows policy: {error}");
             }
 
             build_tray(app.handle())?;
@@ -182,10 +183,10 @@ pub fn run() {
 
             start_projection_timer(app.handle().clone());
 
-            if std::env::args().any(|argument| argument == "--background") {
-                if let Some(window) = app.get_webview_window("main") {
-                    window.hide()?;
-                }
+            if std::env::args().any(|argument| argument == "--background")
+                && let Some(window) = app.get_webview_window("main")
+            {
+                window.hide()?;
             }
             Ok(())
         })

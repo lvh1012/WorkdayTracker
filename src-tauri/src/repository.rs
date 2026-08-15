@@ -132,6 +132,7 @@ impl Repository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
+    #[cfg(test)]
     pub fn event_count(&self) -> Result<i64, RepositoryError> {
         self.connection
             .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
