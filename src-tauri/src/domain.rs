@@ -16,7 +16,6 @@ pub enum EventKind {
     SystemResume,
     SystemShutdown,
 }
-
 impl EventKind {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -110,4 +109,3 @@ mod tests {
         assert!(kinds.iter().all(|kind| kind.is_present() ^ kind.is_away()));
     }
 }
-

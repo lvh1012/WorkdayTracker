@@ -2,20 +2,15 @@ mod domain;
 mod repository;
 mod windows_session;
 
-use std::{
-    fs,
-    sync::Mutex,
-    thread,
-    time::Duration,
-};
+use std::{fs, sync::Mutex, thread, time::Duration};
 
 use domain::{EventKind, Occurrence, WorkdaySummary};
 use repository::Repository;
 use serde::Serialize;
 use tauri::{
+    AppHandle, Emitter, Manager, State, WindowEvent,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, State, WindowEvent,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use windows_session::WindowsSessionMonitor;
@@ -89,17 +84,19 @@ fn record_and_notify(app: &AppHandle, kind: EventKind) {
 }
 
 fn start_projection_timer(app: AppHandle) {
-    thread::spawn(move || loop {
-        thread::sleep(Duration::from_secs(60));
-        let state = app.state::<AppState>();
-        let changed = state
-            .repository
-            .lock()
-            .ok()
-            .and_then(|mut repository| repository.advance_projection(&Occurrence::now()).ok())
-            .unwrap_or(false);
-        if changed {
-            let _ = app.emit("workday-updated", ());
+    thread::spawn(move || {
+        loop {
+            thread::sleep(Duration::from_secs(60));
+            let state = app.state::<AppState>();
+            let changed = state
+                .repository
+                .lock()
+                .ok()
+                .and_then(|mut repository| repository.advance_projection(&Occurrence::now()).ok())
+                .unwrap_or(false);
+            if changed {
+                let _ = app.emit("workday-updated", ());
+            }
         }
     });
 }
@@ -143,7 +140,9 @@ fn show_main_window(app: &AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         // The documentation requires single-instance to be registered before other plugins.
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_main_window(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            show_main_window(app)
+        }))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--background"]),

@@ -3,30 +3,30 @@ use crate::domain::EventKind;
 #[cfg(target_os = "windows")]
 mod implementation {
     use std::{
-        sync::{mpsc, OnceLock},
+        sync::{OnceLock, mpsc},
         thread::{self, JoinHandle},
     };
 
     use windows::{
-        core::{w, Error as WindowsError, Result as WindowsResult},
         Win32::{
             Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
             System::{
                 LibraryLoader::GetModuleHandleW,
                 RemoteDesktop::{
-                    WTSRegisterSessionNotification, WTSUnRegisterSessionNotification,
-                    NOTIFY_FOR_THIS_SESSION,
+                    NOTIFY_FOR_THIS_SESSION, WTSRegisterSessionNotification,
+                    WTSUnRegisterSessionNotification,
                 },
             },
             UI::WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-                PostMessageW, PostQuitMessage, RegisterClassW, TranslateMessage,
-                HWND_MESSAGE, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND, WINDOW_EX_STYLE,
-                WINDOW_STYLE, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_POWERBROADCAST,
-                WM_QUERYENDSESSION, WM_WTSSESSION_CHANGE, WNDCLASSW, WTS_SESSION_LOCK,
-                WTS_SESSION_LOGOFF, WTS_SESSION_LOGON, WTS_SESSION_UNLOCK,
+                HWND_MESSAGE, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND, PostMessageW,
+                PostQuitMessage, RegisterClassW, TranslateMessage, WINDOW_EX_STYLE, WINDOW_STYLE,
+                WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION,
+                WM_WTSSESSION_CHANGE, WNDCLASSW, WTS_SESSION_LOCK, WTS_SESSION_LOGOFF,
+                WTS_SESSION_LOGON, WTS_SESSION_UNLOCK,
             },
         },
+        core::{Error as WindowsError, Result as WindowsResult, w},
     };
 
     use super::EventKind;
@@ -43,9 +43,7 @@ mod implementation {
     }
 
     impl WindowsSessionMonitor {
-        pub fn start(
-            callback: impl Fn(EventKind) + Send + Sync + 'static,
-        ) -> Result<Self, String> {
+        pub fn start(callback: impl Fn(EventKind) + Send + Sync + 'static) -> Result<Self, String> {
             EVENT_CALLBACK
                 .set(Box::new(callback))
                 .map_err(|_| "Windows session monitor was initialized twice".to_owned())?;

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{Connection, Transaction, params};
 
 use thiserror::Error;
 
@@ -85,8 +85,7 @@ impl Repository {
 
     pub fn advance_projection(&mut self, now: &Occurrence) -> Result<bool, RepositoryError> {
         let transaction = self.connection.transaction()?;
-        let mut changed =
-            Self::finalize_older_days(&transaction, &now.local_date, now.utc_ms)?;
+        let mut changed = Self::finalize_older_days(&transaction, &now.local_date, now.utc_ms)?;
         changed += transaction.execute(
             "UPDATE workdays
              SET departure_utc_ms = pending_departure_utc_ms
@@ -230,12 +229,19 @@ mod tests {
         repository
             .advance_projection(&at("2026-08-15", 10_000 + DEPARTURE_GRACE_MS - 1))
             .unwrap();
-        assert!(repository.list_workdays(20_000).unwrap()[0].departure_ms.is_none());
+        assert!(
+            repository.list_workdays(20_000).unwrap()[0]
+                .departure_ms
+                .is_none()
+        );
 
         repository
             .advance_projection(&at("2026-08-15", 10_000 + DEPARTURE_GRACE_MS))
             .unwrap();
-        assert_eq!(repository.list_workdays(20_000).unwrap()[0].departure_ms, Some(10_000));
+        assert_eq!(
+            repository.list_workdays(20_000).unwrap()[0].departure_ms,
+            Some(10_000)
+        );
     }
 
     #[test]

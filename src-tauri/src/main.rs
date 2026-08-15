@@ -4,4 +4,3 @@
 fn main() {
     workday_tracker_lib::run();
 }
-
