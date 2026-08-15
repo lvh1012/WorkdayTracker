@@ -103,7 +103,7 @@ mod implementation {
         };
 
         if unsafe { RegisterClassW(&window_class) } == 0 {
-            let error = WindowsError::from_win32();
+            let error = WindowsError::from_thread();
             let _ = ready_sender.send(Err(error.to_string()));
             return Err(error);
         }
@@ -132,7 +132,7 @@ mod implementation {
         loop {
             let result = unsafe { GetMessageW(&mut message, None, 0, 0) };
             if result.0 == -1 {
-                return Err(WindowsError::from_win32());
+                return Err(WindowsError::from_thread());
             }
             if !result.as_bool() {
                 break;
