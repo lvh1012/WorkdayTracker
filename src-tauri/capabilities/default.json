@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Minimum core capability required by the local React dashboard",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
+
