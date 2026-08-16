@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # The job never pushes. Do not leave GITHUB_TOKEN credentials available to build tools.
           persist-credentials: false
