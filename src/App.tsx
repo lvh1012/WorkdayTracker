@@ -1,13 +1,31 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { formatDate, formatDuration, formatTime } from "./format";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { formatDate, formatDurationBetween, formatTime } from "./format";
+import { ALL_FILTER_VALUE, filterHistory, getHistoryYears } from "./history";
+import {
+  parseThemePreference,
+  resolveTheme,
+  THEME_STORAGE_KEY,
+  type ThemePreference,
+} from "./theme";
 import type { Dashboard, WorkdayStatus, WorkdaySummary } from "./types";
 
 const statusLabels: Record<WorkdayStatus, string> = {
   active: "Đang theo dõi",
   departure_pending: "Đang chờ 30 phút",
   complete: "Đã hoàn tất",
+};
+
+const months = Array.from({ length: 12 }, (_, index) => ({
+  value: (index + 1).toString().padStart(2, "0"),
+  label: `Tháng ${index + 1}`,
+}));
+
+const themeLabels: Record<ThemePreference, string> = {
+  light: "Sáng",
+  dark: "Tối",
+  system: "Hệ thống",
 };
 
 function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
@@ -20,7 +38,11 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
   );
 }
 
-function HistoryRow({ workday }: { workday: WorkdaySummary }) {
+function getDisplayedDuration(workday: WorkdaySummary, nowTimestampMs: number): string {
+  return formatDurationBetween(workday.arrivalMs, workday.departureMs ?? nowTimestampMs);
+}
+
+function HistoryRow({ workday, nowTimestampMs }: { workday: WorkdaySummary; nowTimestampMs: number }) {
   const departure =
     workday.status === "departure_pending"
       ? `Chờ từ ${formatTime(workday.pendingDepartureMs)}`
@@ -31,7 +53,7 @@ function HistoryRow({ workday }: { workday: WorkdaySummary }) {
       <td>{formatDate(workday.date)}</td>
       <td>{formatTime(workday.arrivalMs)}</td>
       <td>{departure}</td>
-      <td className="duration-cell">{formatDuration(workday.durationSeconds)}</td>
+      <td className="duration-cell">{getDisplayedDuration(workday, nowTimestampMs)}</td>
       <td>
         <span className={`status status-${workday.status}`}>{statusLabels[workday.status]}</span>
       </td>
@@ -44,6 +66,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingSetting, setSavingSetting] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(ALL_FILTER_VALUE);
+  const [selectedMonth, setSelectedMonth] = useState(ALL_FILTER_VALUE);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() =>
+    parseThemePreference(window.localStorage.getItem(THEME_STORAGE_KEY)),
+  );
   const latestDashboardRequestId = useRef(0);
 
   const loadDashboard = useCallback(async () => {
@@ -78,6 +105,22 @@ export default function App() {
     };
   }, [loadDashboard]);
 
+  useLayoutEffect(() => {
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const applyTheme = () => {
+      const resolvedTheme = resolveTheme(themePreference, systemTheme.matches);
+      document.documentElement.dataset.theme = resolvedTheme;
+      document.documentElement.style.colorScheme = resolvedTheme;
+    };
+
+    // Persist the preference, not the resolved value, so "system" keeps following Windows.
+    window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
+    applyTheme();
+    systemTheme.addEventListener("change", applyTheme);
+    return () => systemTheme.removeEventListener("change", applyTheme);
+  }, [themePreference]);
+
   async function updateAutostart(enabled: boolean) {
     setSavingSetting(true);
     try {
@@ -105,6 +148,9 @@ export default function App() {
   }
 
   const today = dashboard.today;
+  const nowTimestampMs = Date.now();
+  const historyYears = getHistoryYears(dashboard.history);
+  const filteredHistory = filterHistory(dashboard.history, selectedYear, selectedMonth);
 
   return (
     <main className="app-shell">
@@ -138,8 +184,8 @@ export default function App() {
         />
         <SummaryCard
           label="Tổng thời gian"
-          value={formatDuration(today?.durationSeconds ?? 0)}
-          hint="Tính từ giờ đến tới hiện tại/giờ rời"
+          value={today ? getDisplayedDuration(today, nowTimestampMs) : "00:00"}
+          hint="Tính theo minute precision của giờ hiển thị"
         />
       </section>
 
@@ -147,7 +193,29 @@ export default function App() {
         <div className="panel-heading">
           <div>
             <h2>Lịch sử</h2>
-            <p>Daily projection được tính từ immutable event log.</p>
+            <p>
+              Hiển thị {filteredHistory.length}/{dashboard.history.length} ngày từ immutable event log.
+            </p>
+          </div>
+          <div className="history-filters" aria-label="Lọc lịch sử">
+            <label className="filter-field">
+              <span>Năm</span>
+              <select value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)}>
+                <option value={ALL_FILTER_VALUE}>Tất cả</option>
+                {historyYears.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-field">
+              <span>Tháng</span>
+              <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
+                <option value={ALL_FILTER_VALUE}>Tất cả</option>
+                {months.map((month) => (
+                  <option key={month.value} value={month.value}>{month.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
 
@@ -163,12 +231,14 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {dashboard.history.length === 0 ? (
+              {filteredHistory.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="empty-cell">Chưa có lịch sử.</td>
+                  <td colSpan={5} className="empty-cell">Không có dữ liệu phù hợp bộ lọc.</td>
                 </tr>
               ) : (
-                dashboard.history.map((workday) => <HistoryRow key={workday.date} workday={workday} />)
+                filteredHistory.map((workday) => (
+                  <HistoryRow key={workday.date} workday={workday} nowTimestampMs={nowTimestampMs} />
+                ))
               )}
             </tbody>
           </table>
@@ -176,20 +246,42 @@ export default function App() {
       </section>
 
       <section className="panel settings-panel">
-        <div>
-          <h2>Khởi động cùng Windows</h2>
-          <p>App chạy sau khi user hiện tại đăng nhập; không cần quyền admin.</p>
+        <div className="settings-row">
+          <div>
+            <h2>Khởi động cùng Windows</h2>
+            <p>App chạy sau khi user hiện tại đăng nhập; không cần quyền admin.</p>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={dashboard.autostartEnabled}
+              disabled={savingSetting}
+              onChange={(event) => void updateAutostart(event.target.checked)}
+            />
+            <span className="slider" aria-hidden="true" />
+            <span className="sr-only">Khởi động cùng Windows</span>
+          </label>
         </div>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={dashboard.autostartEnabled}
-            disabled={savingSetting}
-            onChange={(event) => void updateAutostart(event.target.checked)}
-          />
-          <span className="slider" aria-hidden="true" />
-          <span className="sr-only">Khởi động cùng Windows</span>
-        </label>
+        <div className="settings-divider" />
+        <div className="settings-row">
+          <div>
+            <h2>Giao diện</h2>
+            <p>Theme được lưu local; chế độ hệ thống tự theo Windows.</p>
+          </div>
+          <div className="theme-switch" role="group" aria-label="Chọn theme">
+            {(Object.keys(themeLabels) as ThemePreference[]).map((theme) => (
+              <button
+                key={theme}
+                type="button"
+                className={themePreference === theme ? "active" : undefined}
+                aria-pressed={themePreference === theme}
+                onClick={() => setThemePreference(theme)}
+              >
+                {themeLabels[theme]}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       <footer>Data: %LOCALAPPDATA%\\com.lvh1012.workdaytracker\\workday-tracker.db</footer>
