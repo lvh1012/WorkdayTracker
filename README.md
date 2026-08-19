@@ -24,7 +24,8 @@ Chi tiết state machine và edge cases nằm trong [docs/TRACKING.md](docs/TRAC
 ## Tính năng MVP
 
 - React dashboard: giờ đến, giờ rời, tổng thời gian hôm nay.
-- Lịch sử theo ngày.
+- Lịch sử theo ngày, có filter độc lập theo năm và tháng.
+- Theme sáng, tối hoặc tự động theo Windows; preference được lưu local.
 - Native system tray; đóng cửa sổ chỉ ẩn app, không dừng tracking.
 - Chạy cùng Windows cho user hiện tại, không cần admin.
 - SQLite immutable event log và daily projection.
@@ -94,6 +95,12 @@ Database:
 SQLite dùng WAL, vì vậy khi app đang chạy có thể thấy thêm file `-wal` và `-shm`. Không copy riêng file `.db` trong lúc app đang ghi; thoát app trước khi backup cả thư mục.
 
 Database và log files đã bị loại khỏi Git bằng `.gitignore`.
+
+## Minute precision trên UI
+
+SQLite vẫn lưu timestamp chính xác tới millisecond. UI chỉ hiển thị giờ và phút, vì vậy tổng thời gian cũng normalize hai endpoints về minute precision trước khi trừ. Ví dụ `08:33:58 → 13:33:02` được hiển thị `08:33 → 13:33` và tổng `05:00`, thay vì `04:59` gây hiểu nhầm.
+
+History filters và theme preference chỉ là presentation state trong React. Chúng không sửa raw events hoặc daily projection trong SQLite.
 
 ## Repository map
 
